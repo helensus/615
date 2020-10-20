@@ -1,0 +1,166 @@
+---
+title: "Strawberries"
+author: "Haoran Su"
+date: "10/19/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(tidyverse)
+library(magrittr)
+library(kableExtra)
+library(citation)
+opts_chunk$set(echo = FALSE, 
+               warning = FALSE,
+               message = FALSE)
+```
+#Strawberries
+##Background
+The data were collected from the USDA database selector: <a href="https://quickstats.nass.usda.gov">https://quickstats.nass.usda.gov</a>
+
+The data were <a href="https://quickstats.nass.usda.gov/results/D416E96E-3D5C-324C-9334-1D38DF88FFF1">stored online</a> and then downloaded as a CSV file.
+
+In this assignment, after cleaning and reorganizing data, we select the strawberries from three kinds of berries and saperate columns to leave the required data.
+Then we make boxplots for strawberries of years and states. It can also be visualized on the shiny app.
+
+## Data reading and cleaning
+```{r,echo=FALSE}
+
+## read the data
+
+ag_data <- read_csv("berries.csv", col_names = TRUE)
+
+## look at number of unique values in each column
+ag_data %>% summarize_all(n_distinct) -> aa
+
+
+## make a list of the columns with only one unique value
+bb <- which(aa[1,]==1)
+
+## list the 1-unique value column names 
+cn <- colnames(ag_data)[bb]
+
+```
+
+Data selected from the NASS database often has columns without any data or with a single repeated Values.  The berries data had only 8 out of 21 columns containing meaningful data.
+
+```{r,echo=FALSE}
+## remove the 1-unique columns from the dataset
+ag_data %<>% select(-all_of(bb))
+aa %<>% select(-all_of(bb)) 
+
+## State name and the State ANSI code are (sort of) redundant
+## Just keep the name
+ag_data %<>% select(-4)
+aa %<>% select(-4) 
+
+kable(head(ag_data)) %>%
+  kable_styling(font_size=12)
+
+## Display the head of ag_data 
+kable(head(ag_data)) %>%
+  kable_styling(font_size=12)
+
+## 3 kinds of berries
+sberry <- unique(ag_data$Commodity)
+```
+
+This table contains information about `r nberry` berries: blueberries, raspberries, and strawberries. We only choose Strawberries for analyzing and data need further cleaning and organizing. Only YEAR" time period will be considered.
+Also, we separate the `Data Item`, `Domain`, `Domain Category` columns for further cleaning process and remove the redundant columns. 
+
+```{r,echo=FALSE}
+# separate the "strawberries"
+sberry <- ag_data %>% filter((Commodity=="STRAWBERRIES") & (Period=="YEAR"))
+sberry %<>% select(-c(Period, Commodity)) 
+
+# separate "Data Item"
+sberry %<>% separate(`Data Item`, c("B","type", "meas", "what"), sep = ",") 
+sberry  <- select(sberry, -B)
+sberry %<>% separate(type,c("s1", "type", "s2", "lab1", "lab2"), " ")
+sberry %<>% select(-c(s1,s2)) 
+#remove all NA in dataset to " "
+sberry[is.na(sberry)] <- " " 
+
+# separate "Domain" and "Domain Category"
+sberry %<>% separate(Domain, c("D_left", "D_right"), sep = ", ")
+sberry %<>% separate(`Domain Category`, c("DC_left", "DC_right"), sep = ", ")
+sberry %<>% separate(DC_left, c("DC_left_l", "DC_left_r"), sep = ", ")
+sberry %<>% separate(DC_right, c("DC_right_l", "DC_right_r"), sep = ", ") 
+#remove all NA in dataset to " "
+sberry[is.na(sberry)] <- " "
+
+sberry %<>% select(-DC_left_l) 
+sberry %<>% select(-DC_right_l)
+sberry %<>% mutate(label = paste(lab1,lab2)) 
+sberry %<>% mutate(D_left = "CHEMICAL", D_left = "") 
+sberry %<>% mutate(Chemical=paste(D_left, D_right)) 
+sberry %<>% select(-c(D_left, D_right)) 
+sberry %<>% select(State, Year, type, what, meas, label, DC_left_r, DC_right_r, Chemical, Value )
+```
+
+
+Within the "what" and "meas" columns, there are data begins with "MEASURED IN".We want to put them all in the same column.
+
+```{r,echo=FALSE }
+## So, we will separate them from their current column and put them into
+## two columns -- then we will test to make sure there aren't any overlaps
+## and then merge the two columns
+
+### index of cells to be isolated
+index_meas <- str_detect(sberry$meas, "MEASURED IN")
+
+### create a column of the isolated cells
+sberry %<>% mutate(m_in_1 = unlist(map2(index_meas, sberry$meas, f1))) 
+
+###  eliminate the isolated cells from the original column
+sberry %<>% mutate(meas = str_replace(sberry$meas, "MEASURED IN.*$", ""))
+
+## index of cells to be isolated
+index_what <- str_detect(sberry$what, "MEASURED IN")
+
+### create a column of the isolated cells
+sberry %<>% mutate(m_in_2 = unlist(map2(index_what, sberry$what, f1))) 
+
+###  eliminate the isolated cells from the original column
+sberry %<>% mutate(what = str_replace(sberry$what, "MEASURED IN.*$", ""))
+
+### Check for overlaps
+sberry %<>% mutate(units = str_trim(paste(m_in_1, m_in_2))) 
+sberry$units %>% unique()
+
+```
+
+
+Finally rename the columns of the dataset and select those that are required in this analysis.
+
+```{r,echo=FALSE}
+sberry %<>% rename(c(Avg = what, Marketing = meas, Harvest = label, 
+                               Chem_family = DC_left_r, Materials = DC_right_r, 
+                               Measures = units))
+
+str_trim(paste(sberry$Marketing, sberry$Harvest)) %>% unique
+sberry %<>% mutate(production = str_trim(paste(Marketing, Harvest)))
+sberry %<>% mutate(Chemical = str_trim(paste(Chem_family, Chemical)))
+
+sberry %<>% select(Year, State, type, production, Avg, Measures, Materials, Chemical, Value)
+
+#display the headings of current data "sberry"
+colnames(sberry)
+```
+After cleaning and reorganizing the columns, current headings of data "sberry" is as above.
+
+## Boxplot
+
+## Citation
+*
+David Morison (2017) Exploratory data analysis into the relationship between different types of crime in London. Available at: https://towardsdatascience.com/exploratory-data-analysis-into-the-relationship-between-different-types-of-crime-in-london-20c328e193ff (Accessed: 15 Oct 2020).
+*
+United States Department of Agriculture National Agricultural Statistics Service (n.p.) Quick Stats. Available at: https://quickstats.nass.usda.gov/results/D416E96E-3D5C-324C-9334-1D38DF88FFF1 (Accessed: 15 Oct 2020).
+
+```{r}
+package2zenodo("knitr")
+package2zenodo("tidyverse")
+package2zenodo("kableExtra")
+package2zenodo("citation")
+```
