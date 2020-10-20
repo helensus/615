@@ -24,7 +24,7 @@ The data were <a href="https://quickstats.nass.usda.gov/results/D416E96E-3D5C-32
 In this assignment, after cleaning and reorganizing data, we select the strawberries from three kinds of berries and saperate columns to leave the required data.
 Then we make boxplots for strawberries of years and states. It can also be visualized on the shiny app.
 
-## Data reading and cleaning
+## Data cleaning and reorganizing
 ```{r,echo=FALSE}
 
 ## read the data
@@ -66,7 +66,7 @@ kable(head(ag_data)) %>%
 sberry <- unique(ag_data$Commodity)
 ```
 
-This table contains information about `r nberry` berries: blueberries, raspberries, and strawberries. We only choose Strawberries for analyzing and data need further cleaning and organizing. Only YEAR" time period will be considered.
+This table contains information about berries: blueberries, raspberries, and strawberries. We only choose Strawberries for analyzing and data need further cleaning and organizing. Only YEAR" time period will be considered.
 Also, we separate the `Data Item`, `Domain`, `Domain Category` columns for further cleaning process and remove the redundant columns. 
 
 ```{r,echo=FALSE}
@@ -103,9 +103,15 @@ sberry %<>% select(State, Year, type, what, meas, label, DC_left_r, DC_right_r, 
 Within the "what" and "meas" columns, there are data begins with "MEASURED IN".We want to put them all in the same column.
 
 ```{r,echo=FALSE }
-## So, we will separate them from their current column and put them into
-## two columns -- then we will test to make sure there aren't any overlaps
-## and then merge the two columns
+## So, we will separate them from their current column and put them into two columns -- then we will test to make sure there aren't any overlaps and then merge the two columns
+#make a function f1
+f1 <- function(a,b){
+  if(a){
+    return(b)
+  }else{
+      return("")
+  }
+}
 
 ### index of cells to be isolated
 index_meas <- str_detect(sberry$meas, "MEASURED IN")
@@ -132,7 +138,7 @@ sberry$units %>% unique()
 ```
 
 
-Finally rename the columns of the dataset and select those that are required in this analysis.
+Finally, we rename the columns of the dataset and select those that are required in this analysis.
 
 ```{r,echo=FALSE}
 sberry %<>% rename(c(Avg = what, Marketing = meas, Harvest = label, 
@@ -148,9 +154,78 @@ sberry %<>% select(Year, State, type, production, Avg, Measures, Materials, Chem
 #display the headings of current data "sberry"
 colnames(sberry)
 ```
-After cleaning and reorganizing the columns, current headings of data "sberry" is as above.
+After cleaning and reorganizing the columns, current headings of data "sberry" is as above. As the chemicals of strawberries is the factor we want to analysize, we do further filtering for the data.
 
-## Boxplot
+```{r,echo=FALSE}
+unfood <- sberry %<>% filter(production=="APPLICATIONS") 
+
+unfood %<>% filter(Value != "(D)")
+
+unfood %<>% filter(Value !=  "(NA)")
+
+unfood %<>% filter(Measures == "MEASURED IN LB / ACRE / APPLICATION")
+
+df<- unfood %>%  select(Year, State, Chemical, Value, type, production)
+
+df$Value = as.numeric(df$Value)
+
+```
+
+1. We make a box plot of chemical values being applied to strawberries according to different states. 
+
+```{r,echo=FALSE}
+# box plot of different states and value
+bp1 <- ggplot(df, aes(x = State, y = Value))
+bp1 <- bp1 + geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        axis.text = element_text(size = 11),
+        axis.title = element_text(size = 13, face = "bold")) +
+  labs(x = "Different states")
+bp1
+```
+From the plot, we find many outliers influencing the presentation so we remove the outliners and make another box plot.
+
+```{r,echo=FALSE}
+bp2 <- ggplot(df, aes(x = State, y = Value))
+bp2 <- bp2 + geom_boxplot(outlier.colour = NA) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        axis.text = element_text(size = 11),
+        axis.title = element_text(size = 13, face = "bold")) +
+  coord_cartesian(ylim = c(0, 8e+6)) +
+  labs(x = "Different states")
+bp2
+```
+From the plot, we can see that in most states, the chemical values of straberries are quite small. Only in Ohio, Pennsylvania, Wisconsin and other states, the chemical value is high.
+
+
+2. Then we make a box plot of chemical values being applied to strawberries according to years. 
+
+```{r}
+# boxplot of different years
+bp3 <- ggplot(df, aes(x = factor(Year), y = Value))
+bp3 <- bp3 + geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        axis.text = element_text(size = 11),
+        axis.title = element_text(size = 13, face = "bold")) +
+  labs(x = "Different years")
+bp3
+```
+Similarly, the box plot of years also have many outliers so we remove them and get another bow plot.
+
+```{r}
+# excluding outliers
+bp4 <- ggplot(df, aes(x = factor(Year), y = Value))
+bp4 <- bp4 + geom_boxplot(outlier.colour = NA) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        axis.text = element_text(size = 11),
+        axis.title = element_text(size = 13, face = "bold")) +
+  coord_cartesian(ylim = c(0, 6e+6)) +
+  labs(x = "Different years")
+bp4
+```
+Within the years 2015-2019, chemical values of strawberries is quite low in 2016, 2018 and 2019. It has the highest values in 2015 and year 2017 gets the second rank.
+
+
 
 ## Citation
 *
